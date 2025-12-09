@@ -1,4 +1,3 @@
-import React from 'react';
 import { Project, Issue, IssueStatus, IssuePriority, User } from './types';
 
 export const INITIAL_USERS: User[] = [
