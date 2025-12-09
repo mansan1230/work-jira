@@ -9,14 +9,18 @@ interface AppData {
 const GIST_FILENAME = 'mips-work-group-data.json';
 const GIST_DESCRIPTION = 'MIPS Work Group - Project Data Sync';
 
-export const saveToGist = async (token: string, data: AppData, existingGistId?: string): Promise<string> => {
+/**
+ * Saves data to GitHub Gist.
+ * @param isPublic If creating a new Gist, determines if it is public. Default is false (Secret).
+ */
+export const saveToGist = async (token: string, data: AppData, existingGistId?: string, isPublic: boolean = false): Promise<string> => {
   const url = existingGistId 
     ? `https://api.github.com/gists/${existingGistId}`
     : `https://api.github.com/gists`;
 
   const method = existingGistId ? 'PATCH' : 'POST';
 
-  const payload = {
+  const payload: any = {
     description: GIST_DESCRIPTION,
     files: {
       [GIST_FILENAME]: {
@@ -24,6 +28,12 @@ export const saveToGist = async (token: string, data: AppData, existingGistId?: 
       }
     }
   };
+
+  // Only set 'public' when creating a NEW gist. 
+  // GitHub API does not allow changing privacy via PATCH.
+  if (!existingGistId) {
+    payload.public = isPublic;
+  }
 
   const response = await fetch(url, {
     method,
