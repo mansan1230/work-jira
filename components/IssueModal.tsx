@@ -6,13 +6,14 @@ interface IssueModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (issue: Partial<Issue>) => void;
+  onDelete: (issueId: string) => void;
   initialIssue?: Issue;
   project: Project;
   users: User[];
   isDarkMode: boolean;
 }
 
-export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave, initialIssue, project, users, isDarkMode }) => {
+export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave, onDelete, initialIssue, project, users, isDarkMode }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<IssueStatus>(IssueStatus.TODO);
@@ -49,6 +50,13 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
       projectId: project.id,
     });
     onClose();
+  };
+
+  const handleDelete = () => {
+    if (initialIssue && confirm('Are you sure you want to delete this issue?')) {
+      onDelete(initialIssue.id);
+      onClose();
+    }
   };
 
   const modalBg = isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200';
@@ -164,20 +172,33 @@ export const IssueModal: React.FC<IssueModalProps> = ({ isOpen, onClose, onSave,
         </div>
 
         {/* Footer */}
-        <div className={`p-6 border-t ${borderColor} ${isDarkMode ? 'bg-slate-900/50' : 'bg-slate-50'} flex justify-end gap-3`}>
-          <button
-            onClick={onClose}
-            className={`px-5 py-2 text-sm font-medium rounded-lg transition-colors ${isDarkMode ? 'text-slate-400 hover:bg-slate-700 hover:text-slate-200' : 'text-slate-600 hover:text-slate-800 hover:bg-slate-200/50'}`}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={!title}
-            className="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-sm transition-all"
-          >
-            {initialIssue ? 'Save Changes' : 'Create Issue'}
-          </button>
+        <div className={`p-6 border-t ${borderColor} ${isDarkMode ? 'bg-slate-900/50' : 'bg-slate-50'} flex justify-between items-center`}>
+          <div>
+            {initialIssue && (
+              <button
+                onClick={handleDelete}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-700 rounded-lg transition-colors"
+              >
+                <Icons.Trash />
+                Delete Issue
+              </button>
+            )}
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className={`px-5 py-2 text-sm font-medium rounded-lg transition-colors ${isDarkMode ? 'text-slate-400 hover:bg-slate-700 hover:text-slate-200' : 'text-slate-600 hover:text-slate-800 hover:bg-slate-200/50'}`}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={!title}
+              className="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-sm transition-all"
+            >
+              {initialIssue ? 'Save Changes' : 'Create Issue'}
+            </button>
+          </div>
         </div>
 
       </div>
