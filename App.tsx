@@ -42,6 +42,13 @@ const PriorityIcon = ({ priority }: { priority: IssuePriority }) => {
   );
 };
 
+// History State Interface
+interface AppState {
+    projects: Project[];
+    users: User[];
+    issues: Issue[];
+}
+
 export default function App() {
   // --- STATE ---
   
@@ -76,6 +83,10 @@ export default function App() {
       return saved ? JSON.parse(saved) : INITIAL_ISSUES;
     } catch { return INITIAL_ISSUES; }
   });
+
+  // History State for Undo/Redo
+  // Only stores up to 5 actions
+  const [history, setHistory] = useState<{ past: AppState[], future: AppState[] }>({ past: [], future: [] });
 
   // GitHub Sync State
   const [githubToken, setGithubToken] = useState(() => localStorage.getItem('mips_gh_token') || '');
@@ -131,6 +142,54 @@ export default function App() {
     }
   }, [projects, activeProjectId]);
 
+  // --- HISTORY LOGIC (UNDO/REDO) ---
+
+  const saveHistory = () => {
+    setHistory(curr => {
+        const newPast = [...curr.past, { projects, users, issues }];
+        // Limit history to 5 steps
+        if (newPast.length > 5) {
+            newPast.shift();
+        }
+        return {
+            past: newPast,
+            future: []
+        };
+    });
+  };
+
+  const handleUndo = () => {
+      if (history.past.length === 0) return;
+      
+      const previous = history.past[history.past.length - 1];
+      const newPast = history.past.slice(0, -1);
+      
+      setHistory({
+          past: newPast,
+          future: [{ projects, users, issues }, ...history.future]
+      });
+
+      setProjects(previous.projects);
+      setUsers(previous.users);
+      setIssues(previous.issues);
+  };
+
+  const handleRedo = () => {
+      if (history.future.length === 0) return;
+
+      const next = history.future[0];
+      const newFuture = history.future.slice(1);
+
+      setHistory({
+          past: [...history.past, { projects, users, issues }],
+          future: newFuture
+      });
+
+      setProjects(next.projects);
+      setUsers(next.users);
+      setIssues(next.issues);
+  };
+
   // --- HANDLERS ---
 
   const activeProject = projects.find(p => p.id === activeProjectId) || projects[0];
@@ -160,6 +219,8 @@ export default function App() {
   const handleSaveIssue = (issueData: Partial<Issue>) => {
     if (!activeProject) return;
     
+    saveHistory(); // Snapshot before change
+
     if (editingIssue) {
       // Update
       setIssues(prev => prev.map(i => i.id === editingIssue.id ? { ...i, ...issueData } as Issue : i));
@@ -181,11 +242,19 @@ export default function App() {
     }
   };
 
+  const handleDeleteIssue = (issueId: string) => {
+      saveHistory(); // Snapshot before change
+      setIssues(prev => prev.filter(i => i.id !== issueId));
+  };
+
   const handleAddProject = () => {
     if (!newProjectName.trim()) {
         setIsAddingProject(false);
         return;
     }
+    
+    saveHistory(); // Snapshot
+
     const newProject: Project = {
         id: 'p-' + Math.random().toString(36).substr(2, 6),
         key: newProjectName.substring(0, 3).toUpperCase(),
@@ -202,6 +271,7 @@ export default function App() {
   const handleRemoveProject = (e: React.MouseEvent, id: string) => {
       e.stopPropagation();
       if (confirm('Are you sure you want to delete this project?')) {
+          saveHistory(); // Snapshot
           setProjects(prev => prev.filter(p => p.id !== id));
       }
   };
@@ -211,6 +281,9 @@ export default function App() {
         setIsAddingUser(false);
         return;
     }
+    
+    saveHistory(); // Snapshot
+
     const newUser: User = {
         id: 'u-' + Math.random().toString(36).substr(2, 6),
         name: newUserName,
@@ -224,6 +297,7 @@ export default function App() {
   const handleRemoveUser = (e: React.MouseEvent, id: string) => {
       e.stopPropagation();
       if (confirm('Are you sure you want to remove this user?')) {
+          saveHistory(); // Snapshot
           setUsers(prev => prev.filter(u => u.id !== id));
       }
   };
@@ -257,6 +331,7 @@ export default function App() {
           const json = JSON.parse(e.target?.result as string);
           if (json.projects && json.users && json.issues) {
              if (confirm('This will replace all current data. Continue?')) {
+                saveHistory(); // Snapshot before overwrite
                 setProjects(json.projects);
                 setUsers(json.users);
                 setIssues(json.issues);
@@ -274,14 +349,6 @@ export default function App() {
     input.click();
   };
 
-  const handleReset = () => {
-      if (confirm('Are you sure you want to wipe all data and reset to defaults?')) {
-          setProjects(INITIAL_PROJECTS);
-          setUsers(INITIAL_USERS);
-          setIssues(INITIAL_ISSUES);
-      }
-  };
-
   // --- GIST SYNC ---
   const handleGistSave = async (token: string, existingId: string, isSecret: boolean) => {
       setGithubToken(token);
@@ -293,6 +360,9 @@ export default function App() {
   const handleGistLoad = async (token: string, id: string) => {
       setGithubToken(token);
       setGistId(id);
+      
+      saveHistory(); // Snapshot before load
+
       const data = await loadFromGist(token, id);
       setProjects(data.projects);
       setUsers(data.users);
@@ -320,13 +390,17 @@ export default function App() {
   const handleDrop = (e: React.DragEvent, status: IssueStatus) => {
       e.preventDefault();
       if (!draggedIssueId) return;
-
-      setIssues(prev => prev.map(issue => {
-          if (issue.id === draggedIssueId) {
-              return { ...issue, status };
-          }
-          return issue;
-      }));
+      
+      const issue = issues.find(i => i.id === draggedIssueId);
+      if (issue && issue.status !== status) {
+          saveHistory(); // Snapshot
+          setIssues(prev => prev.map(i => {
+              if (i.id === draggedIssueId) {
+                  return { ...i, status };
+              }
+              return i;
+          }));
+      }
   };
 
   const Avatar = ({ userId }: { userId?: string }) => {
@@ -507,7 +581,25 @@ export default function App() {
               <button onClick={handleImport} className="text-slate-500 hover:text-slate-300" title="Import JSON"><Icons.Upload /></button>
               <button onClick={() => setIsGistModalOpen(true)} className="text-slate-500 hover:text-slate-300" title="Sync with GitHub"><Icons.Github /></button>
            </div>
-           <button onClick={handleReset} className="text-slate-700 hover:text-red-500" title="Reset All"><Icons.Refresh /></button>
+           
+           <div className="flex gap-2 items-center border-l border-slate-700 pl-4">
+              <button 
+                onClick={handleUndo} 
+                disabled={history.past.length === 0}
+                className="text-slate-500 hover:text-blue-400 disabled:opacity-30 disabled:hover:text-slate-500 transition-colors" 
+                title="Undo"
+              >
+                  <Icons.Undo />
+              </button>
+              <button 
+                onClick={handleRedo} 
+                disabled={history.future.length === 0}
+                className="text-slate-500 hover:text-blue-400 disabled:opacity-30 disabled:hover:text-slate-500 transition-colors" 
+                title="Redo"
+              >
+                  <Icons.Redo />
+              </button>
+           </div>
         </div>
       </aside>
 
@@ -630,6 +722,7 @@ export default function App() {
             isOpen={isModalOpen}
             onClose={() => setIsModalOpen(false)}
             onSave={handleSaveIssue}
+            onDelete={handleDeleteIssue}
             initialIssue={editingIssue}
             project={activeProject}
             users={users}
