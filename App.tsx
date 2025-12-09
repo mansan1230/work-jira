@@ -283,9 +283,10 @@ export default function App() {
   };
 
   // --- GIST SYNC ---
-  const handleGistSave = async (token: string, existingId: string) => {
+  const handleGistSave = async (token: string, existingId: string, isSecret: boolean) => {
       setGithubToken(token);
-      const newId = await saveToGist(token, { projects, users, issues }, existingId);
+      // isSecret means public=false
+      const newId = await saveToGist(token, { projects, users, issues }, existingId, !isSecret);
       setGistId(newId); // Update stored ID if it was a new creation
   };
 
