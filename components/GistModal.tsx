@@ -4,7 +4,7 @@ import { Icons } from '../constants';
 interface GistModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (token: string, gistId: string) => Promise<void>;
+  onSave: (token: string, gistId: string, isSecret: boolean) => Promise<void>;
   onLoad: (token: string, gistId: string) => Promise<void>;
   initialToken: string;
   initialGistId: string;
@@ -22,6 +22,7 @@ export const GistModal: React.FC<GistModalProps> = ({
 }) => {
   const [token, setToken] = useState(initialToken);
   const [gistId, setGistId] = useState(initialGistId);
+  const [isSecret, setIsSecret] = useState(true); // Default to Secret
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{type: 'success'|'error', text: string} | null>(null);
 
@@ -35,7 +36,7 @@ export const GistModal: React.FC<GistModalProps> = ({
     setIsLoading(true);
     setMessage(null);
     try {
-      await onSave(token, gistId);
+      await onSave(token, gistId, isSecret);
       setMessage({ type: 'success', text: 'Successfully saved to GitHub Gist!' });
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Failed to save' });
@@ -110,6 +111,22 @@ export const GistModal: React.FC<GistModalProps> = ({
               Leave empty to create a new Gist when saving.
             </p>
           </div>
+
+          {/* Secret Toggle - Only relevant if creating a new Gist (no Gist ID) */}
+          {!gistId && (
+            <div className="flex items-center gap-2">
+              <input 
+                type="checkbox" 
+                id="secretGist"
+                checked={isSecret}
+                onChange={e => setIsSecret(e.target.checked)}
+                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+              />
+              <label htmlFor="secretGist" className={`text-sm select-none ${textColor}`}>
+                Create as Secret Gist (Private)
+              </label>
+            </div>
+          )}
           
           {message && (
             <div className={`p-3 rounded text-sm ${message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
